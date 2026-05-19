@@ -121,15 +121,32 @@ app.post('/v1/chat/completions', async (req, res) => {
         extra_body: { chat_template_kwargs: { thinking: true } }
       })
     };
-    
-    // Make request to NVIDIA NIM API
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+  
+    // Make request to NVIDIA NIM API with auto-retry
+let response;
+let retries = 3;
+while (retries > 0) {
+  try {
+    response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: stream ? 'stream' : 'json'
+      responseType: stream ? 'stream' : 'json',
+      timeout: 120000
     });
+    break;
+  } catch (err) {
+    retries--;
+    if (retries === 0) throw err;
+    const code = err.response?.status;
+    if (code === 502 || code === 504 || code === 503) {
+      await new Promise(r => setTimeout(r, 2000)); // wait 2s then retry
+    } else {
+      throw err;
+    }
+  }
+}
     
     if (stream) {
       // Handle streaming response with reasoning
