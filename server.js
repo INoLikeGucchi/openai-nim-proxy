@@ -111,7 +111,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     const nimRequest = {
       model: nimModel,
       messages: finalMessages,
-      max_tokens: Math.max(max_tokens || 9024, 126384),,
+      max_tokens: Math.max(max_tokens || 9024, 126384),
       stream: stream || false,
       ...(ENABLE_THINKING_MODE && isKimi(nimModel) && {
         chat_template_kwargs: { thinking: true },
