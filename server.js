@@ -29,7 +29,7 @@ const MODEL_MAPPING = {
   'gpt-4k6': 'moonshotai/kimi-k2.6',
   'gpt-4m35': 'mistralai/mistral-medium-3.5-128b',
   'claude-3-sonnet': 'z-ai/glm4.7',
-  'mm27': 'minimaxai/minimax-m2.7'
+  'mm27': 'mistralai/mistral-small-4-119b-2603'
 };
 
 // 🔥 Kimi models that support native thinking via chat_template_kwargs
