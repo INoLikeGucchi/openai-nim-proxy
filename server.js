@@ -133,7 +133,7 @@ while (retries > 0) {
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json',
-      timeout: 120000
+      timeout: 300000
     });
     break;
   } catch (err) {
