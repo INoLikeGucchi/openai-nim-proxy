@@ -120,7 +120,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         include_reasoning: true
       }),
       ...(ENABLE_THINKING_MODE && (isDeepseek(nimModel) || isGlm(nimModel)) && {
-        extra_body: { chat_template_kwargs: { thinking: true } }
+        chat_template_kwargs: { thinking: true }
       })
     };
   
