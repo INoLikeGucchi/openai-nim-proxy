@@ -119,8 +119,11 @@ app.post('/v1/chat/completions', async (req, res) => {
         chat_template_kwargs: { thinking: true },
         include_reasoning: true
       }),
-      ...(ENABLE_THINKING_MODE && (isDeepseek(nimModel) || isGlm(nimModel)) && {
+      ...(ENABLE_THINKING_MODE && isDeepseek(nimModel) && {
         chat_template_kwargs: { thinking: true }
+      }),
+      ...(ENABLE_THINKING_MODE && isGlm(nimModel) && {
+        chat_template_kwargs: { enable_thinking: true }
       })
     };
   
