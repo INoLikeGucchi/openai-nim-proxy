@@ -33,7 +33,7 @@ const MODEL_MAPPING = {
   'gpt-4dv4': 'deepseek-ai/deepseek-v4-pro',
   'gpt-4g5': 'z-ai/glm-5.1',
   'gpt-4k5': 'moonshotai/kimi-k2.5',
-  'gpt-4k6': 'moonshotai/kimi-k2.6',
+  'gpt-4k': 'moonshotai/kimi-k2.6',
   'gpt-4m35': 'mistralai/mistral-medium-3.5-128b',
   'claude-3-sonnet': 'z-ai/glm4.7',
   'mm27': 'mistralai/mistral-small-4-119b-2603'
