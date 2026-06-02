@@ -173,35 +173,22 @@ app.post('/v1/chat/completions', async (req, res) => {
                 const content = data.choices[0].delta.content;
                 
                 if (SHOW_REASONING) {
-                  // Kimi now embeds <think> directly in content stream
-                  // Only wrap reasoning_content if content doesn't already have <think>
-                  let combinedContent = '';
-
-                  if (reasoning) {
+                  // Pass content through raw — Kimi embeds <think> tags itself
+                  // Only wrap reasoning_content if there is no content
+                  if (reasoning && !content) {
                     if (!reasoningStarted) {
-                      combinedContent = '<think>\n' + reasoning;
+                      data.choices[0].delta.content = '<think>\n' + reasoning;
                       reasoningStarted = true;
                     } else {
-                      combinedContent = reasoning;
+                      data.choices[0].delta.content = reasoning;
                     }
-                  }
-
-                  if (content) {
-                    if (reasoningStarted) {
-                      combinedContent += '\n</think>\n\n' + content;
-                      reasoningStarted = false;
-                    } else {
-                      combinedContent += content;
-                    }
-                  }
-
-                  // If model already has <think> in content, just pass through as-is
-                  if (!reasoning && content && content.includes('<think>')) {
-                    combinedContent = content;
+                  } else if (content && reasoningStarted) {
+                    data.choices[0].delta.content = '\n</think>\n\n' + content;
                     reasoningStarted = false;
+                  } else {
+                    // Just pass content as-is — model handles its own <think> tags
+                    data.choices[0].delta.content = content || '';
                   }
-
-                  data.choices[0].delta.content = combinedContent;
                   delete data.choices[0].delta.reasoning_content;
                 } else {
                   data.choices[0].delta.content = content || '';
