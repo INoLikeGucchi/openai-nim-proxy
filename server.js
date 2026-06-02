@@ -173,6 +173,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                 const content = data.choices[0].delta.content;
                 
                 if (SHOW_REASONING) {
+                  // Kimi now embeds <think> directly in content stream
+                  // Only wrap reasoning_content if content doesn't already have <think>
                   let combinedContent = '';
 
                   if (reasoning) {
@@ -191,6 +193,12 @@ app.post('/v1/chat/completions', async (req, res) => {
                     } else {
                       combinedContent += content;
                     }
+                  }
+
+                  // If model already has <think> in content, just pass through as-is
+                  if (!reasoning && content && content.includes('<think>')) {
+                    combinedContent = content;
+                    reasoningStarted = false;
                   }
 
                   data.choices[0].delta.content = combinedContent;
