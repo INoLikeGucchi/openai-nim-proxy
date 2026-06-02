@@ -32,8 +32,7 @@ const MODEL_MAPPING = {
   'mm27': 'mistralai/mistral-small-4-119b-2603'
 };
 
-// 🔥 Model type helpers - only Kimi, DeepSeek, GLM get thinking params
-const isKimi = (m) => m.toLowerCase().includes('kimi');
+// 🔥 Model type helpers
 const isDeepseek = (m) => m.toLowerCase().includes('deepseek');
 const isGlm = (m) => m.toLowerCase().includes('glm');
 
@@ -115,10 +114,6 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages: finalMessages,
       max_tokens: Math.max(max_tokens || 9024, 126384),
       stream: stream || false,
-      ...(ENABLE_THINKING_MODE && isKimi(nimModel) && {
-        chat_template_kwargs: { thinking: true },
-        include_reasoning: true
-      }),
       ...(ENABLE_THINKING_MODE && isGlm(nimModel) && {
         chat_template_kwargs: { enable_thinking: true }
       })
