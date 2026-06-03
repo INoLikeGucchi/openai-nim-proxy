@@ -16,10 +16,10 @@ const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.c
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
 // 🔥 REASONING DISPLAY TOGGLE - Shows/hides reasoning in output
-const SHOW_REASONING = true; // Set to true to show reasoning with <think> tags
+const SHOW_REASONING = true;
 
 // 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
-const ENABLE_THINKING_MODE = true; // Set to true to enable chat_template_kwargs thinking parameter
+const ENABLE_THINKING_MODE = true;
 
 // Model mapping (adjust based on available NIM models)
 const MODEL_MAPPING = {
@@ -32,8 +32,8 @@ const MODEL_MAPPING = {
   'mm27': 'mistralai/mistral-small-4-119b-2603'
 };
 
-// 🔥 Model type helpers - only Kimi, DeepSeek, GLM get thinking params
-const isKimi = (m) => m.toLowerCase().includes('kimi');
+// 🔥 Model type helpers
+// Kimi intentionally excluded — it handles thinking natively, no params needed
 const isDeepseek = (m) => m.toLowerCase().includes('deepseek');
 const isGlm = (m) => m.toLowerCase().includes('glm');
 
@@ -109,16 +109,13 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
     
     // Transform OpenAI request to NIM format
-    // 🔥 Only Kimi, DeepSeek, GLM get thinking params — Mistral and others get nothing
+    // 🔥 Kimi gets NO thinking params — it handles reasoning natively via content stream
+    // 🔥 Only DeepSeek and GLM get thinking params
     const nimRequest = {
       model: nimModel,
       messages: finalMessages,
       max_tokens: Math.max(max_tokens || 9024, 126384),
       stream: stream || false,
-      ...(ENABLE_THINKING_MODE && isKimi(nimModel) && {
-        chat_template_kwargs: { thinking: true },
-        include_reasoning: true
-      }),
       ...(ENABLE_THINKING_MODE && isDeepseek(nimModel) && {
         chat_template_kwargs: { thinking: true }
       }),
@@ -146,7 +143,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         if (retries === 0) throw err;
         const code = err.response?.status;
         if (code === 502 || code === 504 || code === 503) {
-          await new Promise(r => setTimeout(r, 2000)); // wait 2s then retry
+          await new Promise(r => setTimeout(r, 2000));
         } else {
           throw err;
         }
@@ -154,7 +151,6 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
     
     if (stream) {
-      // Handle streaming response with reasoning
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -224,7 +220,6 @@ app.post('/v1/chat/completions', async (req, res) => {
         res.end();
       });
     } else {
-      // Transform NIM response to OpenAI format with reasoning
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -269,7 +264,6 @@ app.post('/v1/chat/completions', async (req, res) => {
   }
 });
 
-// Catch-all for unsupported endpoints
 app.all('*', (req, res) => {
   res.status(404).json({
     error: {
