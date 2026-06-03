@@ -176,35 +176,31 @@ app.post('/v1/chat/completions', async (req, res) => {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
                 
-                if (SHOW_REASONING) {
-                  let combinedContent = '';
-                  
-                  if (reasoning && !reasoningStarted) {
-                    combinedContent = '<think>\n' + reasoning;
-                    reasoningStarted = true;
-                  } else if (reasoning) {
-                    combinedContent = reasoning;
-                  }
-                  
-                  if (content && reasoningStarted) {
-                    combinedContent += '</think>\n\n' + content;
-                    reasoningStarted = false;
-                  } else if (content) {
-                    combinedContent += content;
-                  }
-                  
-                  if (combinedContent) {
-                    data.choices[0].delta.content = combinedContent;
-                    delete data.choices[0].delta.reasoning_content;
-                  }
+                let out = content || '';
+
+                if (!SHOW_REASONING) {
+                  // Strip all <think> blocks Kimi embeds directly in content
+                  out = out.replace(/<think>[\s\S]*?<\/think>/gi, '');
+                  out = out.replace(/<think>/gi, '');
+                  out = out.replace(/<\/think>/gi, '');
                 } else {
-                  if (content) {
-                    data.choices[0].delta.content = content;
-                  } else {
-                    data.choices[0].delta.content = '';
-                  }
-                  delete data.choices[0].delta.reasoning_content;
+                  // Clean up nested/duplicate <think> tags into one clean block
+                  out = out.replace(/<think>\s*<think>/gi, '<think>');
+                  out = out.replace(/<\/think>\s*<\/think>/gi, '</think>');
                 }
+
+                // Handle reasoning_content field (DeepSeek style)
+                if (reasoning && SHOW_REASONING) {
+                  if (!reasoningStarted) {
+                    out = '<think>\n' + reasoning + (out ? '\n</think>\n\n' + out : '');
+                    reasoningStarted = true;
+                  } else {
+                    out = reasoning + out;
+                  }
+                }
+
+                data.choices[0].delta.content = out;
+                delete data.choices[0].delta.reasoning_content;
               }
               res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
