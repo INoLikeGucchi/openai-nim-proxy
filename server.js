@@ -180,7 +180,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                 if (SHOW_REASONING) {
                   let combinedContent = '';
 
-                  if (reasoning) {
+                  // Only reasoning, no content yet
+                  if (reasoning && !content) {
                     if (!reasoningStarted) {
                       combinedContent = '<think>\n' + reasoning;
                       reasoningStarted = true;
@@ -189,20 +190,33 @@ app.post('/v1/chat/completions', async (req, res) => {
                     }
                   }
 
+                  // Content arrived — close think block if open
                   if (content) {
                     if (reasoningStarted) {
-                      combinedContent += '\n</think>\n\n' + content;
+                      combinedContent = '\n</think>\n\n' + content;
                       reasoningStarted = false;
                     } else {
-                      combinedContent += content;
+                      combinedContent = content;
+                    }
+                  }
+
+                  // Both arrived in same chunk — wrap reasoning then content
+                  if (reasoning && content) {
+                    if (!reasoningStarted) {
+                      combinedContent = '<think>\n' + reasoning + '\n</think>\n\n' + content;
+                    } else {
+                      combinedContent = reasoning + '\n</think>\n\n' + content;
+                      reasoningStarted = false;
                     }
                   }
 
                   data.choices[0].delta.content = combinedContent;
                   delete data.choices[0].delta.reasoning_content;
+                  delete data.choices[0].delta.thinking_content;
                 } else {
                   data.choices[0].delta.content = content || '';
                   delete data.choices[0].delta.reasoning_content;
+                  delete data.choices[0].delta.thinking_content;
                 }
               }
               res.write(`data: ${JSON.stringify(data)}\n\n`);
