@@ -115,7 +115,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages: finalMessages,
       max_tokens: Math.max(max_tokens || 9024, 126384),
       stream: stream || false,
-      ...(isKimi(nimModel) && { include_reasoning: true }),
+      ...(isKimi(nimModel) && {
+        include_reasoning: true,
+        chat_template_kwargs: { thinking: true }
+      }),
       ...(ENABLE_THINKING_MODE && isGlm(nimModel) && {
         chat_template_kwargs: { enable_thinking: true }
       })
@@ -231,8 +234,8 @@ app.post('/v1/chat/completions', async (req, res) => {
         choices: response.data.choices.map(choice => {
           let fullContent = choice.message?.content || '';
           
-          if (SHOW_REASONING && choice.message?.reasoning_content) {
-            fullContent = '<think>\n' + choice.message.reasoning_content + '\n</think>\n\n' + fullContent;
+          if (SHOW_REASONING && (choice.message?.reasoning_content || choice.message?.thinking_content)) {
+            fullContent = '<think>\n' + (choice.message.reasoning_content || choice.message.thinking_content) + '\n</think>\n\n' + fullContent;
           }
           
           return {
