@@ -33,6 +33,7 @@ const MODEL_MAPPING = {
 };
 
 // 🔥 Model type helpers
+const isKimi = (m) => m.toLowerCase().includes('kimi');
 const isDeepseek = (m) => m.toLowerCase().includes('deepseek');
 const isGlm = (m) => m.toLowerCase().includes('glm');
 
@@ -114,6 +115,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages: finalMessages,
       max_tokens: Math.max(max_tokens || 9024, 126384),
       stream: stream || false,
+      ...(isKimi(nimModel) && { include_reasoning: true }),
       ...(ENABLE_THINKING_MODE && isGlm(nimModel) && {
         chat_template_kwargs: { enable_thinking: true }
       })
