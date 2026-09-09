@@ -13,18 +13,15 @@ const NIM_API_BASE =
 
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// JAI model name -> NVIDIA model
 const MODEL = 'moonshotai/kimi-k3';
 const JAI_MODEL_NAME = 'gpt-4k6';
 
-// Maximum output tokens.
-// Kimi K3 supports up to 16,384 output tokens on NVIDIA's endpoint.
-const MAX_OUTPUT_TOKENS = 16384;
+const MAX_OUTPUT_TOKENS = 32384;
 
 
-// ================================
+// ========================================
 // HEALTH CHECK
-// ================================
+// ========================================
 
 app.get('/health', (req, res) => {
   res.json({
@@ -34,9 +31,9 @@ app.get('/health', (req, res) => {
 });
 
 
-// ================================
-// MODEL LIST
-// ================================
+// ========================================
+// MODELS
+// ========================================
 
 app.get('/v1/models', (req, res) => {
   res.json({
@@ -53,9 +50,9 @@ app.get('/v1/models', (req, res) => {
 });
 
 
-// ================================
+// ========================================
 // CHAT COMPLETIONS
-// ================================
+// ========================================
 
 app.post('/v1/chat/completions', async (req, res) => {
 
@@ -68,11 +65,13 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream
     } = req.body;
 
-    // ----------------------------
-    // Validate messages
-    // ----------------------------
+
+    // ----------------------------------------
+    // Validate request
+    // ----------------------------------------
 
     if (!Array.isArray(messages) || messages.length === 0) {
+
       return res.status(400).json({
         error: {
           message: 'No messages were provided.',
@@ -80,11 +79,13 @@ app.post('/v1/chat/completions', async (req, res) => {
           code: 400
         }
       });
+
     }
 
-    // ----------------------------
-    // Output token handling
-    // ----------------------------
+
+    // ----------------------------------------
+    // Output token limit
+    // ----------------------------------------
 
     let outputTokens = Number(max_tokens);
 
@@ -97,9 +98,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       MAX_OUTPUT_TOKENS
     );
 
-    // ----------------------------
+
+    // ----------------------------------------
     // NVIDIA request
-    // ----------------------------
+    // ----------------------------------------
 
     const nimRequest = {
       model: MODEL,
@@ -113,9 +115,15 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: Boolean(stream)
     };
 
+
     console.log(
-      `JAI request -> ${MODEL} | max_tokens=${outputTokens} | stream=${Boolean(stream)}`
+      `JAI -> Kimi K3 | max_tokens=${outputTokens} | stream=${Boolean(stream)}`
     );
+
+
+    // ----------------------------------------
+    // Send to NVIDIA
+    // ----------------------------------------
 
     const response = await axios.post(
       `${NIM_API_BASE}/chat/completions`,
@@ -129,16 +137,18 @@ app.post('/v1/chat/completions', async (req, res) => {
             : 'application/json'
         },
 
-        responseType: stream ? 'stream' : 'json',
+        responseType: stream
+          ? 'stream'
+          : 'json',
 
         timeout: 300000
       }
     );
 
 
-    // ================================
+    // ========================================
     // STREAMING
-    // ================================
+    // ========================================
 
     if (stream) {
 
@@ -157,7 +167,18 @@ app.post('/v1/chat/completions', async (req, res) => {
         'keep-alive'
       );
 
+      res.flushHeaders();
+
+
       let buffer = '';
+
+      // Tracks whether we have entered Kimi's
+      // reasoning section.
+      let thinkStarted = false;
+
+      // Tracks whether reasoning has ended.
+      let thinkEnded = false;
+
 
       response.data.on('data', chunk => {
 
@@ -165,7 +186,9 @@ app.post('/v1/chat/completions', async (req, res) => {
 
         const lines = buffer.split('\n');
 
+        // Keep incomplete line for next chunk
         buffer = lines.pop() || '';
+
 
         for (const line of lines) {
 
@@ -173,11 +196,40 @@ app.post('/v1/chat/completions', async (req, res) => {
             continue;
           }
 
-          // Pass DONE through
+
+          // --------------------------------------
+          // DONE
+          // --------------------------------------
+
           if (line.trim() === 'data: [DONE]') {
+
+            // Close the think block if Kimi ended
+            // while still reasoning.
+            if (thinkStarted && !thinkEnded) {
+
+              res.write(
+                `data: ${JSON.stringify({
+                  choices: [
+                    {
+                      delta: {
+                        content: '</think>\n'
+                      }
+                    }
+                  ]
+                })}\n\n`
+              );
+
+            }
+
             res.write('data: [DONE]\n\n');
+
             continue;
           }
+
+
+          // --------------------------------------
+          // Parse SSE JSON
+          // --------------------------------------
 
           try {
 
@@ -188,89 +240,153 @@ app.post('/v1/chat/completions', async (req, res) => {
             const delta =
               data.choices?.[0]?.delta;
 
+
             if (delta) {
 
-              // Kimi can return reasoning separately.
-              // Convert it into <think> tags for JAI.
-
+              // NVIDIA/Kimi may use any of these
+              // reasoning fields.
               const reasoning =
                 delta.reasoning_content ||
                 delta.reasoning ||
                 delta.thinking_content ||
                 '';
 
-              const content =
-                delta.content || '';
+
+              // ==================================
+              // REASONING TOKEN
+              // ==================================
+
+              if (reasoning) {
+
+                // FIRST reasoning chunk
+                if (!thinkStarted) {
+
+                  thinkStarted = true;
+
+                  delta.content =
+                    '<think>\n' + reasoning;
+
+                }
+
+                // ALL subsequent reasoning chunks
+                else {
+
+                  delta.content =
+                    reasoning;
+
+                }
+
+              }
+
+
+              // ==================================
+              // NORMAL RESPONSE TOKEN
+              // ==================================
+
+              else if (
+                delta.content &&
+                thinkStarted &&
+                !thinkEnded
+              ) {
+
+                delta.content =
+                  '</think>\n' +
+                  delta.content;
+
+                thinkEnded = true;
+
+              }
+
+
+              // Remove NVIDIA-specific reasoning
+              // fields so JAI doesn't display them
+              // separately.
 
               delete delta.reasoning;
               delete delta.reasoning_content;
               delete delta.thinking_content;
 
-              let output = '';
-
-              if (reasoning) {
-                output += `<think>\n${reasoning}`;
-              }
-
-              if (content) {
-                output += content;
-              }
-
-              if (output) {
-                delta.content = output;
-              }
             }
+
+
+            // --------------------------------------
+            // Send modified SSE chunk to JAI
+            // --------------------------------------
 
             res.write(
               `data: ${JSON.stringify(data)}\n\n`
             );
 
-          } catch (e) {
+
+          } catch (err) {
+
             console.error(
               'Stream parsing error:',
-              e.message
+              err.message
             );
+
           }
+
         }
+
       });
+
+
+      // ----------------------------------------
+      // Stream finished
+      // ----------------------------------------
 
       response.data.on('end', () => {
+
         res.end();
+
       });
 
+
+      // ----------------------------------------
+      // Stream error
+      // ----------------------------------------
+
       response.data.on('error', err => {
+
         console.error(
           'NVIDIA stream error:',
           err.message
         );
 
         res.end();
+
       });
+
 
       return;
     }
 
 
-    // ================================
+    // ========================================
     // NON-STREAMING
-    // ================================
+    // ========================================
 
     const data = response.data;
+
 
     res.json({
       id:
         data.id ||
         `chatcmpl-${Date.now()}`,
 
-      object: 'chat.completion',
+      object:
+        'chat.completion',
 
       created:
         data.created ||
         Math.floor(Date.now() / 1000),
 
-      model: JAI_MODEL_NAME,
+      model:
+        JAI_MODEL_NAME,
 
-      choices: data.choices || [],
+      choices:
+        data.choices || [],
 
       usage:
         data.usage || {
@@ -280,56 +396,81 @@ app.post('/v1/chat/completions', async (req, res) => {
         }
     });
 
+
   } catch (error) {
 
-    console.error(
-      'NVIDIA ERROR:',
-      error.response?.data || error.message
-    );
+    // ========================================
+    // NVIDIA ERROR
+    // ========================================
 
     const status =
       error.response?.status || 500;
 
-    const nvidiaError =
+    const upstream =
       error.response?.data;
+
+
+    console.error(
+      'NVIDIA ERROR:',
+      upstream || error.message
+    );
+
 
     res.status(status).json({
       error: {
+
         message:
-          nvidiaError?.detail ||
-          nvidiaError?.error?.message ||
+          upstream?.detail ||
+          upstream?.error?.message ||
           error.message ||
           'NVIDIA request failed',
 
-        type: 'nvidia_api_error',
+        type:
+          'nvidia_api_error',
 
-        code: status,
+        code:
+          status,
 
-        details: nvidiaError || null
+        details:
+          upstream || null
+
       }
     });
+
   }
+
 });
 
 
-// ================================
+// ========================================
 // 404
-// ================================
+// ========================================
 
 app.use((req, res) => {
+
   res.status(404).json({
+
     error: {
-      message: `Endpoint ${req.path} not found`,
-      type: 'invalid_request_error',
-      code: 404
+
+      message:
+        `Endpoint ${req.path} not found`,
+
+      type:
+        'invalid_request_error',
+
+      code:
+        404
+
     }
+
   });
+
 });
 
 
-// ================================
-// START
-// ================================
+// ========================================
+// START SERVER
+// ========================================
 
 app.listen(PORT, () => {
 
