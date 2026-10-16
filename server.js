@@ -26,11 +26,11 @@ const NIM_API_KEY =
 // ========================================
 
 // Primary model
-const MODEL = 'deepseek-ai/deepseek-v4-pro-0813';
+const MODEL = 'z-ai/glm-5.3';
 
 // Fallback model
 const FALLBACK_MODEL =
-  'moonshotai/kimi-k3';
+  'deepseek-ai/deepseek-v4.1-flash';
 
 // Model name exposed to JanitorAI
 const JAI_MODEL_NAME = 'gpt-4k6';
