@@ -26,7 +26,7 @@ const NIM_API_KEY =
 // ========================================
 
 // Primary model
-const MODEL = 'z-ai/glm-5.3';
+const MODEL = 'z-ai/glm-5.3-flash';
 
 // Fallback model
 const FALLBACK_MODEL =
