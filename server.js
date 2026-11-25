@@ -33,13 +33,13 @@ const MODELS = {
   'kimi-rp': {
     label: 'Kimi',
     nimId: 'moonshotai/kimi-k3.1-pro',
-    maxTokens: 62384,
+    maxTokens: 302384,
     reasoningEffort: 'medium' // 'low' | 'medium' | 'high' | 'max'
   },
   'glm-rp': {
     label: 'GLM',
     nimId: 'z-ai/glm-5.3-flash',
-    maxTokens: 62384,
+    maxTokens: 302384,
     reasoningEffort: 'medium'
   }
 };
